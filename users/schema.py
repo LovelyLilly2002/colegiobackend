@@ -15,12 +15,12 @@ class UserType(DjangoObjectType):
     nombre_completo = graphene.String()
     puede_gestionar_bienes = graphene.Boolean()
     puede_gestionar_biblioteca = graphene.Boolean()
-    es_administrador_campo = graphene.Boolean()
+    es_administrador = graphene.Boolean()
 
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'email', 'nombre', 'apellidos', 'dni', 'telefono',
+            'id', 'username', 'email', 'first_name', 'last_name', 'dni', 'telefono',
             'rol', 'es_docente', 'grado', 'seccion', 'turno', 'nivel',
             'fecha_registro', 'ultima_actualizacion'
         )
@@ -34,7 +34,7 @@ class UserType(DjangoObjectType):
     def resolve_puede_gestionar_biblioteca(self, info):
         return self.puede_gestionar_biblioteca()
 
-    def resolve_es_administrador_campo(self, info):
+    def resolve_es_administrador(self, info):
         return self.es_administrador()
 
 
@@ -44,10 +44,15 @@ class UserType(DjangoObjectType):
 class Query(graphene.ObjectType):
     """Consultas GraphQL para usuarios"""
 
-    me = graphene.Field(UserType)  # Usuario actual logueado
+    # Usuario actual logueado
+    me = graphene.Field(UserType)  
+     #Obtener un usuario por ID
     usuario = graphene.Field(UserType, id=graphene.Int(required=True))
+    #Listar todo los usuarios (solo admin)
     todos_usuarios = graphene.List(UserType)
+    #Filtrar por rol especifico
     usuarios_por_rol = graphene.List(UserType, rol=graphene.String(required=True))
+    #Obtener todos los docentes
     docentes = graphene.List(UserType)
 
     @login_required
@@ -102,8 +107,8 @@ class RegistrarUsuario(graphene.Mutation):
         username = graphene.String(required=True)
         password = graphene.String(required=True)
         email = graphene.String()
-        nombre = graphene.String(required=True)
-        apellidos = graphene.String(required=True)
+        first_name = graphene.String(required=True)
+        last_name = graphene.String(required=True)
         dni = graphene.String()
         telefono = graphene.String()
         es_docente = graphene.Boolean(required=False, default_value=False)
@@ -112,21 +117,26 @@ class RegistrarUsuario(graphene.Mutation):
         turno = graphene.String()
         nivel = graphene.String()
 
-    def mutate(self, info, username, password, nombre, apellidos,
+    def mutate(self, info, username, password, first_name, last_name,
                email=None, dni=None, telefono=None,
                es_docente=False, grado=None, seccion=None,
                turno=None, nivel=None):
+        
+        # 🚨 VALIDACIÓN CRÍTICA: Asegurar que la contraseña no esté vacía 🚨
+        if not password or password.strip() == "":
+            raise GraphQLError("La contraseña es obligatoria y no puede estar vacía.")
 
         # Validar si ya existe el usuario
         if User.objects.filter(username=username).exists():
             raise GraphQLError("Ya existe un usuario con ese nombre de usuario.")
 
         # Crear el usuario
-        user = User(
+        user = User.objects.create_user(
             username=username,
+            password=password,
             email=email,
-            nombre=nombre,
-            apellidos=apellidos,
+            first_name=first_name,
+            last_name=last_name,
             dni=dni,
             telefono=telefono,
             es_docente=es_docente,
@@ -134,18 +144,17 @@ class RegistrarUsuario(graphene.Mutation):
 
         # Si el usuario es docente, guardar también los campos docentes
         if es_docente:
-            user.grado = grado or ""
-            user.seccion = seccion or ""
-            user.turno = turno or ""
-            user.nivel = nivel or ""
+            user.grado = grado 
+            user.seccion = seccion 
+            user.turno = turno 
+            user.nivel = nivel 
         else:
             # Si NO es docente, dejar vacíos esos campos
-            user.grado = ""
-            user.seccion = ""
-            user.turno = ""
-            user.nivel = ""
+            user.grado = None
+            user.seccion = None
+            user.turno = None
+            user.nivel = None
 
-        user.set_password(password)
         user.save()
 
         return RegistrarUsuario(user=user, mensaje="Usuario registrado correctamente.")
@@ -159,8 +168,8 @@ class ActualizarUsuario(graphene.Mutation):
 
     class Arguments:
         id = graphene.Int(required=True)
-        nombre = graphene.String()
-        apellidos = graphene.String()
+        first_name = graphene.String()
+        last_name = graphene.String()
         email = graphene.String()
         telefono = graphene.String()
         dni = graphene.String()

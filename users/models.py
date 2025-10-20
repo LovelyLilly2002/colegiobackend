@@ -22,8 +22,7 @@ class User(AbstractUser):
     )
 
     # ====== CAMPOS DEL USUARIO ======
-    nombre = models.CharField('Nombre', max_length=100, help_text='Nombre del usuario o docente.')
-    apellidos = models.CharField('Apellidos', max_length=100, help_text='Apellidos completos del usuario.')
+   
     dni = models.CharField('DNI', max_length=8, unique=True, blank=True, null=True, help_text='Documento Nacional de Identidad (8 dígitos).')
     telefono = models.CharField('Teléfono', max_length=15, blank=True, null=True, help_text='Número de teléfono de contacto.')
     rol = models.CharField(max_length=20, choices=ROLES, default='GENERAL', help_text='Rol o tipo de usuario dentro del sistema.')
@@ -51,7 +50,7 @@ class User(AbstractUser):
     # ====== MÉTODOS PERSONALIZADOS ======
     def get_nombre_completo(self):
         """Retorna el nombre completo del usuario."""
-        return f"{self.nombre} {self.apellidos}"
+        return f"{self.first_name} {self.last_name}"
 
     def puede_gestionar_bienes(self):
         """Verifica si el usuario tiene permiso para gestionar bienes."""
