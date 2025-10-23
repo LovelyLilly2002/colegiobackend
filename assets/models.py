@@ -10,12 +10,12 @@ class Asset(models.Model):
     # ======================
     # OPCIONES DE ELECCIÓN
     # ======================
-    TIPOS = (
+    TIPOS_BIEN = (
         ('MOVIL', 'Bien Móvil'),
         ('INMOVIL', 'Bien Inmóvil'),
     )
 
-    ESTADOS = (
+    ESTADOS_BIEN = (
         ('DISPONIBLE', 'Disponible'),
         ('EN_USO', 'En uso'),
         ('DANADO', 'Dañado'),
@@ -38,7 +38,7 @@ class Asset(models.Model):
     tipo = models.CharField(
         'Tipo',
         max_length=20,
-        choices=TIPOS,
+        choices=TIPOS_BIEN,
         help_text='Indica si el bien es móvil (puede trasladarse) o inmóvil (instalado permanentemente).'
     )
     codigo_inventario = models.CharField(
@@ -66,7 +66,7 @@ class Asset(models.Model):
     estado = models.CharField(
         'Estado',
         max_length=20,
-        choices=ESTADOS,
+        choices=ESTADOS_BIEN,
         default='DISPONIBLE',
         help_text='Situación actual del bien: disponible, en uso, dañado o dado de baja.'
     )
@@ -144,7 +144,7 @@ class AssetAssignment(models.Model):
         ('ASIGNACION', 'Asignación permanente'),
     )
 
-    ESTADOS = (
+    ESTADOS_ASIGNACION = (
         ('ACTIVA', 'Activa'),
         ('DEVUELTO', 'Devuelto'),
         ('TRANSFERIDO', 'Transferido'),
@@ -185,7 +185,7 @@ class AssetAssignment(models.Model):
     estado = models.CharField(
         'Estado',
         max_length=20,
-        choices=ESTADOS,
+        choices=ESTADOS_ASIGNACION,
         default='ACTIVA',
         help_text='Estado actual de la asignación: activa, devuelto o transferido.'
     )
