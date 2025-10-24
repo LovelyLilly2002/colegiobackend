@@ -47,7 +47,7 @@ class Query(graphene.ObjectType):
         nombre=graphene.String(),
         tipo=graphene.String(),
         estado=graphene.String(),
-        buscar=graphene.String()
+        buscar=graphene.String() # buscar por nombre, descripción o código
     )
     # Obtener todos los bienes que están disponibles
     bienes_disponibles = graphene.List(AssetType)
@@ -293,14 +293,92 @@ class Query(graphene.ObjectType):
 # =======================================
 # MUTATIONS (Mutaciones)
 # =======================================
+# ========================================
+# MUTATIONS PARA BIENES (ASSET)
+# ========================================
 
+class CrearOActualizarBien(graphene.Mutation):
+    class Arguments:
+        nombre = graphene.String(required=True)
+        tipo = graphene.String(required=True)
+        codigo_inventario = graphene.String(required=True)
+        descripcion = graphene.String()
+        cantidad = graphene.Int()
+        ubicacion = graphene.String()
+
+    bien = graphene.Field(AssetType)
+
+    def mutate(self, info, nombre, tipo, codigo_inventario, descripcion=None, cantidad=None, ubicacion=None):
+        # Buscar si ya existe un bien con ese código
+        bien_existente = Asset.objects.filter(codigo_inventario=codigo_inventario).first()
+
+        if bien_existente:
+            # Si existe, actualizamos la cantidad
+            cantidad_a_sumar = cantidad if cantidad is not None else 1
+            bien_existente.cantidad = (bien_existente.cantidad or 0) + cantidad_a_sumar
+            bien_existente.descripcion = descripcion or bien_existente.descripcion
+            bien_existente.ubicacion = ubicacion or bien_existente.ubicacion
+            bien_existente.save()
+            return CrearOActualizarBien(bien=bien_existente)
+        else:
+            # Si no existe, crear un nuevo bien
+            nuevo_bien = Asset.objects.create(
+                nombre=nombre,
+                tipo=tipo,
+                codigo_inventario=codigo_inventario,
+                descripcion=descripcion,
+                cantidad=cantidad if cantidad is not None else 1,
+                ubicacion=ubicacion,
+                fecha_adquisicion=timezone.now(),
+            )
+            return CrearOActualizarBien(bien=nuevo_bien)
+
+class EliminarBien(graphene.Mutation):
+    """Eliminar (total o parcialmente) un bien del inventario."""
+    class Arguments:
+        codigo_inventario = graphene.String(required=True)
+        cantidad = graphene.Int()  # opcional: si no se pone, elimina todo el bien
+
+    bien = graphene.Field(AssetType)
+    mensaje = graphene.String()
+
+    def mutate(self, info, codigo_inventario, cantidad=None):
+        try:
+            bien = Asset.objects.get(codigo_inventario=codigo_inventario)
+        except Asset.DoesNotExist:
+            raise GraphQLError("No existe un bien con ese código de inventario.")
+
+        # Si no se especifica cantidad, se elimina el bien completo
+        if cantidad is None:
+            bien.delete()
+            return EliminarBien(bien=None, mensaje="Bien eliminado completamente.")
+
+        # Si la cantidad a eliminar es mayor o igual, eliminar el bien
+        if cantidad >= bien.cantidad:
+            bien.delete()
+            return EliminarBien(bien=None, mensaje="Se eliminaron todas las unidades del bien.")
+
+        # Si no, solo se resta la cantidad
+        bien.cantidad -= cantidad
+        bien.save()
+
+        return EliminarBien(bien=bien, mensaje=f"Se eliminaron {cantidad} unidades del bien.")
+
+# ========================================
+# MUTATIONS PARA ASIGNACIONES (ASSET ASSIGNMENT)
+# ========================================
+
+
+
+
+
+
+
+
+# ========================================
+# REGISTRO EN EL SCHEMA PRINCIPAL
+# ========================================
 class Mutation(graphene.ObjectType):
-    """Placeholder para las mutaciones - se implementarán después"""
-    pass
-
-
-# =======================================
-# SCHEMA
-# =======================================
-
-schema = graphene.Schema(query=Query, mutation=Mutation)
+    Crear_O_ActualizarBien = CrearOActualizarBien.Field()
+    eliminar_bien = EliminarBien.Field()
+    

@@ -61,6 +61,7 @@ class Asset(models.Model):
     )
     fecha_adquisicion = models.DateField(
         'Fecha de adquisición',
+        default=timezone.now,  
         help_text='Fecha en la que el bien fue adquirido.'
     )
     estado = models.CharField(

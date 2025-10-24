@@ -174,5 +174,5 @@ GRAPHQL_JWT = {
     'JWT_VERIFY_EXPIRATION': True,
     'JWT_EXPIRATION_DELTA': timedelta(days=7),  # El token expira en 7 días
     'JWT_REFRESH_EXPIRATION_DELTA': timedelta(days=30),  # Refresh token expira en 30 días
-    'JWT_AUTH_HEADER_PREFIX': 'Bearer',
+
 }
