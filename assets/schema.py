@@ -6,6 +6,8 @@ from django.db.models import Q
 from .models import Asset, AssetAssignment
 from users.schema import UserType
 from graphql_jwt.decorators import login_required
+from django.contrib.auth import get_user_model
+
 
 
 class AssetType(DjangoObjectType):
@@ -368,8 +370,166 @@ class EliminarBien(graphene.Mutation):
 # MUTATIONS PARA ASIGNACIONES (ASSET ASSIGNMENT)
 # ========================================
 
+class CrearAsignacion(graphene.Mutation):
+    """Mutación para crear o actualizar la asignación de un bien a un usuario."""
+
+    class Arguments:
+        bien_id = graphene.Int(required=True, description="ID del bien a asignar")
+        usuario_id = graphene.Int(required=True, description="ID del usuario que recibe el bien")
+        tipo_asignacion = graphene.String(required=True, description="Tipo de asignación: PRESTAMO o ASIGNACION")
+        cantidad_asignada = graphene.Int(description="Cantidad a asignar (por defecto 1)")
+        observaciones = graphene.String(description="Notas o comentarios")
+        fecha_devolucion_programada = graphene.Date(description="Fecha programada de devolución (solo para préstamos)")
+
+    success = graphene.Boolean()
+    mensaje = graphene.String()
+    errors = graphene.List(graphene.String)
+    asignacion = graphene.Field(AssetAssignmentType)
+
+    @login_required
+    def mutate(
+        self, info, bien_id, usuario_id, tipo_asignacion,
+        cantidad_asignada=None, fecha_devolucion_programada=None,
+        observaciones=None
+    ):
+
+        # 1️⃣ Validar cantidad (por defecto 1)
+        if not cantidad_asignada or cantidad_asignada <= 0:
+            cantidad_asignada = 1
+
+        # 2️⃣ Buscar el bien
+        try:
+            bien = Asset.objects.get(id=bien_id)
+        except Asset.DoesNotExist:
+            return CrearAsignacion(success=False, errors=["El bien no existe"])
+
+        # 3️⃣ Buscar usuario
+        User = get_user_model()
+        try:
+            usuario = User.objects.get(id=usuario_id)
+        except User.DoesNotExist:
+            return CrearAsignacion(success=False, errors=["El usuario no existe"])
+
+        # 4️⃣ Validar tipo de asignación
+        tipos_validos = [choice[0] for choice in AssetAssignment.TIPOS_ASIGNACION]
+        if tipo_asignacion not in tipos_validos:
+            return CrearAsignacion(
+                success=False,
+                errors=[f"Tipo de asignación inválido. Debe ser uno de: {', '.join(tipos_validos)}"]
+            )
+
+        # 5️⃣ Validar disponibilidad
+        if bien.cantidad < cantidad_asignada:
+            return CrearAsignacion(
+                success=False,
+                errors=[f"No hay suficiente stock. Disponible: {bien.cantidad} unidades."]
+            )
+
+        # 6️⃣ Revisar si ya existe una asignación activa del mismo usuario para este bien
+        asignacion_existente = AssetAssignment.objects.filter(
+            bien=bien,
+            usuario=usuario,
+            estado='ACTIVA'
+        ).first()
+
+        if asignacion_existente:
+            # Si existe, sumar la cantidad y actualizar observaciones/fecha si se pasa
+            asignacion_existente.cantidad_asignada += cantidad_asignada
+            if observaciones:
+                asignacion_existente.observaciones = (asignacion_existente.observaciones or '') + f" | {observaciones}"
+            if fecha_devolucion_programada:
+                asignacion_existente.fecha_devolucion_programada = fecha_devolucion_programada
+            asignacion_existente.save()
+            asignacion = asignacion_existente
+        else:
+            # Si no existe, crear una nueva asignación
+            asignacion = AssetAssignment.objects.create(
+                bien=bien,
+                usuario=usuario,
+                tipo_asignacion=tipo_asignacion,
+                cantidad_asignada=cantidad_asignada,
+                fecha_asignacion=timezone.now(),
+                fecha_devolucion_programada=fecha_devolucion_programada,
+                observaciones=observaciones,
+                estado='ACTIVA'
+            )
+
+        # 7️⃣ Reducir stock del bien
+        bien.cantidad -= cantidad_asignada
+        bien.save()
+
+        return CrearAsignacion(
+            success=True,
+            mensaje=f"{tipo_asignacion.capitalize()} registrada correctamente.",
+            asignacion=asignacion
+        )
+
+        # ==================================================
+
+class DevolverBien(graphene.Mutation):
+    """Mutación para devolver un bien asignado a un usuario."""
+
+    class Arguments:
+        usuario_id = graphene.Int(required=True, description="ID del usuario que devuelve el bien")
+        codigo_bien = graphene.String(required=True, description="Código de inventario del bien")
+        cantidad = graphene.Int(required=True, description="Cantidad que se devuelve")
+        observaciones = graphene.String(description="Notas de la devolución")
+
+    success = graphene.Boolean()
+    mensaje = graphene.String()
+
+    @login_required
+    def mutate(self, info, usuario_id, codigo_bien, cantidad, observaciones=None):
+        # 1️⃣ Buscar el bien
+        try:
+            bien = Asset.objects.get(codigo_inventario=codigo_bien)
+        except Asset.DoesNotExist:
+            raise GraphQLError("No existe un bien con ese código.")
+
+        # 2️⃣ Buscar la asignación activa del usuario para ese bien
+        asignacion = AssetAssignment.objects.filter(
+            bien=bien,
+            usuario_id=usuario_id,
+            estado='ACTIVA'
+        ).first()
+
+        if not asignacion:
+            raise GraphQLError("El usuario no tiene asignación activa de ese bien.")
+
+        # 3️⃣ Validar cantidad
+        if cantidad <= 0:
+            raise GraphQLError("La cantidad a devolver debe ser mayor que cero.")
+
+        if cantidad > asignacion.cantidad_asignada:
+            raise GraphQLError(
+                f"No se puede devolver más de lo asignado. Asignado: {asignacion.cantidad_asignada}"
+            )
+
+        # 4️⃣ Actualizar cantidad y stock
+        asignacion.cantidad_asignada -= cantidad
+        bien.cantidad += cantidad
+        bien.save()
+
+        # 5️⃣ Registrar devolución total o parcial
+        asignacion.fecha_devolucion = timezone.now()
+        if observaciones:
+            asignacion.observaciones_devolucion = observaciones
+
+        if asignacion.cantidad_asignada == 0:
+            # Si se devolvió todo, eliminar la asignación
+            asignacion.delete()
+            mensaje = f"Se devolvieron todas las unidades del bien {bien.nombre}. La asignación se eliminó."
+        else:
+            asignacion.save()
+            mensaje = f"Se devolvieron {cantidad} unidades del bien {bien.nombre}. Quedan {asignacion.cantidad_asignada} asignadas."
+
+        return DevolverBien(
+            success=True,
+            mensaje=mensaje
+        )
 
 
+    #===========================================================================
 
 
 
@@ -379,6 +539,8 @@ class EliminarBien(graphene.Mutation):
 # REGISTRO EN EL SCHEMA PRINCIPAL
 # ========================================
 class Mutation(graphene.ObjectType):
-    Crear_O_ActualizarBien = CrearOActualizarBien.Field()
+    crear_o_actualizarBien = CrearOActualizarBien.Field()
     eliminar_bien = EliminarBien.Field()
+    crear_asignacion = CrearAsignacion.Field()
+    devolver_bien = DevolverBien.Field()
     
