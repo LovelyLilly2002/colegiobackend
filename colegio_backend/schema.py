@@ -4,11 +4,13 @@ import graphql_jwt
 # Importar los schemas de cada módulo
 import users.schema
 import assets.schema 
+import library.schema 
 
 
 class Query(
     users.schema.Query, 
     assets.schema.Query,
+    library.schema.Query,
     graphene.ObjectType,
 ):
     pass
@@ -17,6 +19,7 @@ class Query(
 class Mutation(
     users.schema.Mutation, 
     assets.schema.Mutation, 
+    library.schema.Mutation,
     graphene.ObjectType
 ):
     # Mutaciones de autenticación JWT

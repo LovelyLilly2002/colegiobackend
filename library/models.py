@@ -7,15 +7,39 @@ from django.utils import timezone
 class Libro(models.Model):
     """Modelo para registrar libros de la biblioteca"""
 
-    titulo = models.CharField(max_length=200, verbose_name='Título')
-    autor = models.CharField(max_length=100, verbose_name='Autor')
-    isbn = models.CharField(max_length=13, unique=True, verbose_name='ISBN')
-    editorial = models.CharField(max_length=100, verbose_name='Editorial')
-    cantidad = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    titulo = models.CharField(
+        max_length=200, 
+        verbose_name='Título',
+        help_text='Ingrese el título completo del libro.'
+    )
+    autor = models.CharField(
+        max_length=100, 
+        verbose_name='Autor',
+        help_text='Ingrese el nombre del autor del libro.'
+    )
+    isbn = models.CharField(
+        max_length=13, 
+        unique=True, 
+        verbose_name='ISBN',
+        help_text='Ingrese el código ISBN (13 caracteres).'
+    )
+    editorial = models.CharField(
+        max_length=100, 
+        null=True,
+        blank=True,
+        verbose_name='Editorial',
+        help_text='Ingrese la editorial del libro (opcional).'
+    )
+    cantidad = models.PositiveIntegerField(
+        default=1, 
+        verbose_name='Cantidad',
+        help_text='Ingrese la cantidad de ejemplares disponibles.'
+    )
     numero_paginas = models.PositiveIntegerField(
         null=True, 
         blank=True,
-        verbose_name='Número de páginas'
+        verbose_name='Número de páginas',
+        help_text='Ingrese el número total de páginas (opcional).'
     )
 
     # Campos de auditoría
@@ -51,22 +75,31 @@ class PrestamoLibro(models.Model):
         Libro,
         on_delete=models.CASCADE,
         related_name='prestamos',
-        verbose_name='Libro'
+        verbose_name='Libro',
+        help_text='Seleccione el libro que será prestado.'
     )
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='prestamos_libros',
-        verbose_name='Usuario'
+        verbose_name='Usuario',
+        help_text='Seleccione el usuario que tomará prestado el libro.'
     )
-    fecha_prestamo = models.DateTimeField('Fecha de préstamo', auto_now_add=True)
-    fecha_devolucion = models.DateField('Fecha de devolución')
+    fecha_prestamo = models.DateTimeField(
+        'Fecha de préstamo', 
+        auto_now_add=True
+    )
+    fecha_devolucion = models.DateField(
+        'Fecha de devolución',
+        help_text='Ingrese la fecha en que el libro debe ser devuelto.'
+    )
     prestado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         related_name='prestamos_realizados',
-        verbose_name='Prestado por'
+        verbose_name='Prestado por',
+        help_text='Usuario encargado de registrar el préstamo.'
     )
     recibido_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -74,9 +107,14 @@ class PrestamoLibro(models.Model):
         null=True,
         blank=True,
         related_name='devoluciones_recibidas',
-        verbose_name='Recibido por'
+        verbose_name='Recibido por',
+        help_text='Usuario encargado de recibir la devolución (opcional).'
     )
-    observaciones = models.TextField(blank=True, verbose_name='Observaciones')
+    observaciones = models.TextField(
+        blank=True, 
+        verbose_name='Observaciones',
+        help_text='Ingrese cualquier observación sobre el préstamo (opcional).'
+    )
 
     class Meta:
         verbose_name = 'Préstamo de Libro'
