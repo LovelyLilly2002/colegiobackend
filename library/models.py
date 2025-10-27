@@ -46,8 +46,7 @@ class Libro(models.Model):
 
 class PrestamoLibro(models.Model):
     """Modelo para registrar préstamos de libros"""
-
-    # Relaciones
+    
     libro = models.ForeignKey(
         Libro,
         on_delete=models.CASCADE,
@@ -60,17 +59,8 @@ class PrestamoLibro(models.Model):
         related_name='prestamos_libros',
         verbose_name='Usuario'
     )
-    
-    # Fechas
-    fecha_prestamo = models.DateTimeField(
-        'Fecha de préstamo', 
-        auto_now_add=True
-    )
-    fecha_devolucion = models.DateField(
-        'Fecha de devolución'
-    )
-    
-    # Usuarios responsables
+    fecha_prestamo = models.DateTimeField('Fecha de préstamo', auto_now_add=True)
+    fecha_devolucion = models.DateField('Fecha de devolución')
     prestado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -86,12 +76,7 @@ class PrestamoLibro(models.Model):
         related_name='devoluciones_recibidas',
         verbose_name='Recibido por'
     )
-    
-    # Observaciones
-    observaciones = models.TextField(
-        blank=True,
-        verbose_name='Observaciones'
-    )
+    observaciones = models.TextField(blank=True, verbose_name='Observaciones')
 
     class Meta:
         verbose_name = 'Préstamo de Libro'
@@ -101,19 +86,19 @@ class PrestamoLibro(models.Model):
     def __str__(self):
         return f"{self.libro.titulo} - {self.usuario.username}"
 
-def clean(self):
-    super().clean()
-    
-    # Validar fechas
-    if self.fecha_prestamo and self.fecha_devolucion:
-        if self.fecha_devolucion < self.fecha_prestamo.date():
-            raise ValidationError({
-                'fecha_devolucion': 
-                'La fecha de devolución no puede ser anterior a la fecha de préstamo.'
-            })
+    def clean(self):
+        super().clean()
+        
+        # Validar fechas
+        if self.fecha_prestamo and self.fecha_devolucion:
+            if self.fecha_devolucion < self.fecha_prestamo.date():
+                raise ValidationError({
+                    'fecha_devolucion': 
+                    'La fecha de devolución no puede ser anterior a la fecha de préstamo.'
+                })
 
-    # Validar disponibilidad del libro
-    if self.libro.cantidad <= 0:
-        raise ValidationError({
-            'libro': 'No hay ejemplares disponibles de este libro.'
-        })
+        # Validar disponibilidad del libro
+        if self.libro.cantidad <= 0:
+            raise ValidationError({
+                'libro': 'No hay ejemplares disponibles de este libro.'
+            })
