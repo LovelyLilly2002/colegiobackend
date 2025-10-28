@@ -69,7 +69,12 @@ class Libro(models.Model):
 
 
 class PrestamoLibro(models.Model):
-    """Modelo para registrar préstamos de libros"""
+    """
+    Modelo para registrar préstamos de libros
+    
+    IMPORTANTE: Este modelo NO maneja inventario automáticamente.
+    El control de inventario se hace completamente desde GraphQL.
+    """
     
     libro = models.ForeignKey(
         Libro,
@@ -85,13 +90,20 @@ class PrestamoLibro(models.Model):
         verbose_name='Usuario',
         help_text='Seleccione el usuario que tomará prestado el libro.'
     )
+    cantidad = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Cantidad prestada',
+        help_text='Ingrese la cantidad de ejemplares que se prestarán.'
+    )
     fecha_prestamo = models.DateTimeField(
         'Fecha de préstamo', 
         auto_now_add=True
     )
     fecha_devolucion = models.DateField(
         'Fecha de devolución',
-        help_text='Ingrese la fecha en que el libro debe ser devuelto.'
+        null=True,
+        blank=True,
+        help_text='Ingrese la fecha en que el libro debe ser devuelto (opcional).'
     )
     prestado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -115,6 +127,11 @@ class PrestamoLibro(models.Model):
         verbose_name='Observaciones',
         help_text='Ingrese cualquier observación sobre el préstamo (opcional).'
     )
+    devuelto = models.BooleanField(
+        default=False,
+        verbose_name='Devuelto',
+        help_text='Indica si el libro ha sido devuelto.'
+    )
 
     class Meta:
         verbose_name = 'Préstamo de Libro'
@@ -122,9 +139,10 @@ class PrestamoLibro(models.Model):
         ordering = ['-fecha_prestamo']
 
     def __str__(self):
-        return f"{self.libro.titulo} - {self.usuario.username}"
+        return f"{self.libro.titulo} - {self.usuario.username} ({self.cantidad} ej.)"
 
     def clean(self):
+        """Validaciones básicas del modelo"""
         super().clean()
         
         # Validar fechas
@@ -135,8 +153,8 @@ class PrestamoLibro(models.Model):
                     'La fecha de devolución no puede ser anterior a la fecha de préstamo.'
                 })
 
-        # Validar disponibilidad del libro
-        if self.libro.cantidad <= 0:
+        # Validar que la cantidad prestada no sea cero
+        if self.cantidad <= 0:
             raise ValidationError({
-                'libro': 'No hay ejemplares disponibles de este libro.'
+                'cantidad': 'La cantidad prestada debe ser al menos 1.'
             })
